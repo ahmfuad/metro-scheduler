@@ -1,0 +1,26 @@
+<annotation>
+	<folder>futi08</folder>
+	<filename>futi08_373.jpg</filename>
+	<path>D:\subwaylabel\futi08\futi08_373.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>640</width>
+		<height>480</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>person</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>271</xmin>
+			<ymin>83</ymin>
+			<xmax>356</xmax>
+			<ymax>392</ymax>
+		</bndbox>
+	</object>
+</annotation>

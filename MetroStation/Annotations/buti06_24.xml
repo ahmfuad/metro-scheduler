@@ -1,0 +1,26 @@
+<annotation>
+	<folder>buti06</folder>
+	<filename>buti06_24.jpg</filename>
+	<path>E:\CV\datasets\0604扩展集筛选+缩放\buti06\buti06_24.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>640</width>
+		<height>480</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>person</name>
+		<pose>Unspecified</pose>
+		<truncated>1</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>284</xmin>
+			<ymin>1</ymin>
+			<xmax>372</xmax>
+			<ymax>218</ymax>
+		</bndbox>
+	</object>
+</annotation>
