@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 model = YOLO("yolov8n.pt")  # 'n' = nano version (fastest), you can try yolov8s.pt or yolov8m.pt too
 
 # Load image
-image_path = "C:/Users/arnab/Downloads/1.jpg"
+image_path = "image_path"
 image = cv2.imread(image_path)
 image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -32,3 +32,7 @@ plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 plt.title(f"People Detected: {count}")
 plt.axis("off")
 plt.show()
+
+cv2.imshow(f"People Detected: {count}", image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
