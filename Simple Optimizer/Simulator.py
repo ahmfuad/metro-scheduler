@@ -369,9 +369,11 @@ class HeadwaySimulator:
                     # split Q components into old and new arrivals is complicated without storing arrival times.
                     # We'll approximate: assume arrivals this interval waited on average h_k/2,
                     # and previously queued waited an additional average (we'll treat previously queued as having waited 0 extra here).
-                    interval_wait += arrivals[i] * (H[k - 1] / 2.0)
+                    
+                    # (change) previous waiting is somehow added intuitively
+                    interval_wait += arrivals[i] * (H[k - 1] / 2.0) + Q[-1][i] * H[k - 1]
                 else:
-                    interval_wait += arrivals[i] * (H[k - 1] / 2.0)
+                    interval_wait += arrivals[i] * (H[k - 1] / 2.0) + Q[-1][i] * H[k - 1]
 
             # After finishing stations for train k, compute totals
             served_this_train = sum(boarding_this_train)
