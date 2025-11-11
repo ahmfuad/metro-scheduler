@@ -1,0 +1,40 @@
+[
+  {
+    "optimization_time": 0.0,
+    "trigger_reason": "Z-score threshold exceeded: 13.26",
+    "original_fitness": 408.75,
+    "adapted_fitness": 409.0151515151515,
+    "improvement_percentage": -0.06486887220831837,
+    "adapted_headways": [
+      5,
+      5,
+      5,
+      5,
+      5,
+      5,
+      5,
+      6
+    ],
+    "scaling_factors": {
+      "S01UN": 1.0728153381804564,
+      "S02UC": 4.0,
+      "S03US": 4.0,
+      "S04PL": 4.0,
+      "S05M11": 4.0,
+      "S06M10": 1.94694126439455,
+      "S07KP": 1.2747856180602708,
+      "S08SP": 4.0,
+      "S09AG": 4.0,
+      "S10BS": 3.616404735065123,
+      "S11FG": 3.104246909439893,
+      "S12KB": 4.0,
+      "S13SB": 4.0,
+      "S14DU": 4.0,
+      "S15BS": 4.0,
+      "S16MJ": 3.7490466322975347
+    },
+    "original_passengers_served": 32,
+    "adapted_passengers_served": 33,
+    "passengers_improvement_percentage": 3.125
+  }
+]

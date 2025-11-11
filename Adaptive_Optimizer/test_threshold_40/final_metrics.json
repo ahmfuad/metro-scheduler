@@ -1,0 +1,42 @@
+{
+  "static_optimization": {
+    "fitness": 408.75,
+    "avg_waiting_time": 2.5,
+    "total_passengers_served": 1360,
+    "total_passengers_left": 0
+  },
+  "adaptive_optimization": {
+    "total_adaptations": 32,
+    "avg_fitness": 408.9707086642087,
+    "avg_improvement_percentage": -0.0019839815393184286,
+    "total_adaptation_time_seconds": 101.84651,
+    "avg_adaptation_time_seconds": 3.1827034375,
+    "avg_passengers_served": 1389.75,
+    "avg_passengers_improvement_percentage": 0.12016812184317863
+  },
+  "monitoring_performance": {
+    "total_monitoring_points": 241,
+    "threshold_exceedances": 173,
+    "avg_aggregated_z_score": 38.70332540891806,
+    "max_aggregated_z_score": 223.64994735026485,
+    "exceedance_rate": 0.7178423236514523
+  },
+  "system_performance": {
+    "total_simulation_time_hours": 20.0,
+    "total_optimization_time_seconds": 105.71193242073059,
+    "optimization_efficiency": 0.18497109826589594,
+    "system_responsiveness": 3.1827034375
+  },
+  "overall_improvement_percentage": 0.0,
+  "final_headways": [
+    5,
+    5,
+    5,
+    6,
+    5,
+    5,
+    5,
+    5
+  ],
+  "simulation_timestamp": "2025-11-11T16:44:02.237146"
+}

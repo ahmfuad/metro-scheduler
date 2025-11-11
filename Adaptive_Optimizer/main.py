@@ -461,7 +461,8 @@ class MetroAdaptiveOptimizationSystem:
                 monitoring_history=self.monitoring_history,
                 adaptation_history=self.adaptation_history,
                 static_results=final_metrics['static_optimization'],
-                adaptive_summary=final_metrics['adaptive_optimization']
+                adaptive_summary=final_metrics['adaptive_optimization'],
+                z_threshold=self.config.z_score_threshold
             )
             
             logger.info(f"Visualizations completed and saved to {self.visualization_system.config.output_directory}")

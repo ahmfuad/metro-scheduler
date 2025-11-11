@@ -66,7 +66,8 @@ class MetroVisualizationSystem:
         logger.info("Visualization system initialized")
     
     def plot_monitoring_dashboard(self, monitoring_history: List[MonitoringResult],
-                                title: str = "Real-time Monitoring Dashboard") -> plt.Figure:
+                                title: str = "Real-time Monitoring Dashboard",
+                                z_threshold: float = 2.0) -> plt.Figure:
         """
         Create a comprehensive monitoring dashboard.
         
@@ -96,7 +97,7 @@ class MetroVisualizationSystem:
         
         # 1. Aggregated Z-score over time
         axes[0, 0].plot(timestamps, agg_z_scores, 'b-', linewidth=2, label='Aggregated Z-score')
-        axes[0, 0].axhline(y=2.0, color='r', linestyle='--', alpha=0.7, label='Threshold')
+        axes[0, 0].axhline(y=z_threshold, color='r', linestyle='--', alpha=0.7, label=f'Threshold ({z_threshold})')
         axes[0, 0].fill_between(timestamps, agg_z_scores, 0, alpha=0.3)
         
         # Highlight threshold exceedances
@@ -162,8 +163,8 @@ class MetroVisualizationSystem:
         if all_z_scores:
             axes[1, 1].hist(all_z_scores, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
             axes[1, 1].axvline(x=0, color='black', linestyle='-', alpha=0.5)
-            axes[1, 1].axvline(x=2, color='red', linestyle='--', alpha=0.7, label='Threshold')
-            axes[1, 1].axvline(x=-2, color='red', linestyle='--', alpha=0.7)
+            axes[1, 1].axvline(x=z_threshold, color='red', linestyle='--', alpha=0.7, label=f'Threshold ({z_threshold})')
+            axes[1, 1].axvline(x=-z_threshold, color='red', linestyle='--', alpha=0.7)
             axes[1, 1].set_title('Z-score Distribution')
             axes[1, 1].set_xlabel('Z-score')
             axes[1, 1].set_ylabel('Frequency')
@@ -201,7 +202,8 @@ Most Problematic Stations: {', '.join(list(exceedance_counts.keys())[:3])}
         return fig
     
     def plot_optimization_results(self, adaptation_history: List[AdaptiveOptimizationResult],
-                                title: str = "Adaptive Optimization Results") -> plt.Figure:
+                                title: str = "Adaptive Optimization Results", 
+                                z_threshold: float = 2.0) -> plt.Figure:
         """
         Plot optimization results and performance metrics.
         
@@ -309,7 +311,7 @@ Most Problematic Stations: {', '.join(list(exceedance_counts.keys())[:3])}
         
         for result in adaptation_history:
             for station, z_score in result.z_scores_at_trigger.items():
-                if abs(z_score) > 2.0:  # Above threshold
+                if abs(z_score) > z_threshold:  # Above threshold
                     all_trigger_z_scores.append(abs(z_score))
                     trigger_stations.append(station)
         
@@ -564,7 +566,8 @@ Avg Comp Time: {avg_computation_time:.1f}s
         return fig
     
     def create_animated_monitoring_plot(self, monitoring_history: List[MonitoringResult],
-                                      save_gif: bool = True) -> Optional[FuncAnimation]:
+                                      save_gif: bool = True, 
+                                      z_threshold: float = 2.0) -> Optional[FuncAnimation]:
         """
         Create an animated plot of real-time monitoring data.
         
@@ -600,7 +603,7 @@ Avg Comp Time: {avg_computation_time:.1f}s
             
             # Z-score evolution
             ax1.plot(current_timestamps, current_z_scores, 'b-', linewidth=2)
-            ax1.axhline(y=2.0, color='r', linestyle='--', alpha=0.7, label='Threshold')
+            ax1.axhline(y=z_threshold, color='r', linestyle='--', alpha=0.7, label=f'Threshold ({z_threshold})')
             ax1.set_title(f'Aggregated Z-score Evolution (Time: {timestamps[frame]:.1f} min)')
             ax1.set_xlabel('Time (minutes)')
             ax1.set_ylabel('Z-score')
@@ -645,7 +648,8 @@ Avg Comp Time: {avg_computation_time:.1f}s
     def generate_comprehensive_report(self, monitoring_history: List[MonitoringResult],
                                     adaptation_history: List[AdaptiveOptimizationResult],
                                     static_results: Dict,
-                                    adaptive_summary: Dict) -> None:
+                                    adaptive_summary: Dict,
+                                    z_threshold: float = 2.0) -> None:
         """
         Generate a comprehensive report with all visualizations.
         
@@ -659,17 +663,21 @@ Avg Comp Time: {avg_computation_time:.1f}s
             Results from static optimization
         adaptive_summary : Dict
             Summary of adaptive optimization performance
+        z_threshold : float
+            Z-score threshold value for visualization
         """
         logger.info("Generating comprehensive visualization report...")
         
         # 1. Monitoring Dashboard
         self.plot_monitoring_dashboard(monitoring_history, 
-                                     "Real-time Monitoring Dashboard - Full Report")
+                                     "Real-time Monitoring Dashboard - Full Report",
+                                     z_threshold)
         
         # 2. Optimization Results
         if adaptation_history:
             self.plot_optimization_results(adaptation_history, 
-                                         "Adaptive Optimization Results - Full Report")
+                                         "Adaptive Optimization Results - Full Report",
+                                         z_threshold)
         
         # 3. Comparison Analysis
         self.plot_comparison_analysis(static_results, adaptive_summary,
@@ -677,7 +685,7 @@ Avg Comp Time: {avg_computation_time:.1f}s
         
         # 4. Animated monitoring (if data available)
         if len(monitoring_history) >= 5:  # Only create if enough data points
-            self.create_animated_monitoring_plot(monitoring_history)
+            self.create_animated_monitoring_plot(monitoring_history, save_gif=True, z_threshold=z_threshold)
         
         logger.info(f"Comprehensive report generated and saved to {self.config.output_directory}/")
         
