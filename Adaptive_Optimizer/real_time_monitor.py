@@ -83,7 +83,8 @@ class RealTimeMonitor:
     
     def simulate_real_time_passenger_data(self, current_time_minutes: float) -> Dict[str, float]:
         """
-        Simulate real-time passenger count data with realistic variations.
+        Simulate real-time passenger count data with realistic variations for ALL stations.
+        FIXED: Generate realistic loads for all stations, not just those in historical data.
         
         Parameters
         ----------
@@ -98,29 +99,50 @@ class RealTimeMonitor:
         passenger_counts = {}
         current_hour = int(current_time_minutes / 60) % 24
         
+        # Initialize station trends if not present
+        if not hasattr(self, '_station_trends'):
+            # Initialize each station with different base characteristics
+            self._station_trends = {}
+            base_rates = [3.0, 2.5, 4.2, 3.8, 2.1, 3.5, 4.1, 2.8, 3.2, 2.9, 3.6, 2.3, 4.0, 3.1, 2.7, 3.4]
+            for i, station in enumerate(self.station_ids):
+                self._station_trends[station] = base_rates[i % len(base_rates)]
+        
         for station in self.station_ids:
-            # Get historical baseline
-            if station in self.data_processor.hourly_arrival_rates:
+            # Get historical baseline if available, otherwise use station-specific synthetic base rate
+            if (station in self.data_processor.hourly_arrival_rates and 
+                self.data_processor.hourly_arrival_rates[station]):
+                # Use actual historical data if available
                 base_rate = self.data_processor.hourly_arrival_rates[station].get(current_hour, 0.0)
+                if base_rate == 0.0:  # If no data for this hour, use average of available hours
+                    available_rates = list(self.data_processor.hourly_arrival_rates[station].values())
+                    base_rate = np.mean(available_rates) if available_rates else 2.0
             else:
-                base_rate = 0.0
+                # Generate synthetic base rate for stations without historical data
+                station_index = self.station_ids.index(station)
+                # Different stations have different base patterns
+                base_rate = self._station_trends[station] * (1.0 + 0.3 * np.sin(station_index))
             
             # Calculate expected passengers in monitoring interval
             expected_passengers = base_rate * self.monitoring_interval
             
-            # Add realistic variations
-            # 1. Random noise
-            noise_factor = 1.0 + random.uniform(-self.noise_level, self.noise_level)
+            # Add much more realistic variations
+            # 1. Random noise (increased for more variation)
+            noise_factor = 1.0 + random.uniform(-self.noise_level * 2, self.noise_level * 2)
             
             # 2. Time-of-day variations (rush hours, etc.)
             time_factor = self._get_time_factor(current_hour)
             
-            # 3. Occasional spikes or drops (special events, delays, etc.)
+            # 3. Station-specific random events (delays, special events, etc.)
             event_factor = self._get_event_factor(current_time_minutes, station)
             
-            # Calculate current passenger count
-            simulated_count = expected_passengers * noise_factor * time_factor * event_factor
-            simulated_count = max(0, simulated_count)  # Ensure non-negative
+            # 4. Update trend with random walk
+            trend_change = random.uniform(-0.1, 0.1)
+            self._station_trends[station] = max(0.3, min(2.5, self._station_trends[station] + trend_change))
+            
+            # Calculate current passenger count with all factors
+            simulated_count = (expected_passengers * noise_factor * time_factor * 
+                             event_factor * self._station_trends[station])
+            simulated_count = max(1.0, simulated_count)  # Ensure minimum of 1 passenger
             
             passenger_counts[station] = simulated_count
         
@@ -171,15 +193,24 @@ class RealTimeMonitor:
         # Simulate occasional events that cause demand spikes/drops
         # This is where you might integrate real-time external data sources
         
-        # Simulate a random event every ~2 hours on average
-        event_probability = 0.001  # Low probability per minute
+        # Increased event probability for more variation
+        event_probability = 0.05  # 5% chance per monitoring interval
         
         if random.random() < event_probability:
             # Random event: could be positive (festival) or negative (delay)
-            if random.random() < 0.7:  # 70% chance of positive event
-                return random.uniform(1.5, 3.0)  # Demand spike
+            event_type = random.choice(['major_spike', 'minor_spike', 'drop'])
+            if event_type == 'major_spike':
+                factor = random.uniform(2.5, 4.0)  # Major demand spike
+                logger.debug(f"Major spike event at {station}: {factor:.1f}x normal load")
+                return factor
+            elif event_type == 'minor_spike':
+                factor = random.uniform(1.5, 2.5)  # Minor demand spike
+                logger.debug(f"Minor spike event at {station}: {factor:.1f}x normal load")
+                return factor
             else:
-                return random.uniform(0.2, 0.7)   # Demand drop
+                factor = random.uniform(0.2, 0.6)   # Demand drop
+                logger.debug(f"Drop event at {station}: {factor:.1f}x normal load")
+                return factor
         
         return 1.0  # No event
     
@@ -208,6 +239,7 @@ class RealTimeMonitor:
     def check_threshold_exceeded(self, z_scores: Dict[str, float]) -> Tuple[bool, List[str]]:
         """
         Check if Z-score threshold is exceeded at any station.
+        NEW LOGIC: Trigger adaptation if ANY station exceeds threshold.
         
         Parameters
         ----------
@@ -224,8 +256,12 @@ class RealTimeMonitor:
         for station, z_score in z_scores.items():
             if abs(z_score) > self.z_score_threshold:
                 stations_above_threshold.append(station)
+                logger.debug(f"Station {station} exceeds threshold: |{z_score:.2f}| > {self.z_score_threshold}")
         
         threshold_exceeded = len(stations_above_threshold) > 0
+        
+        if threshold_exceeded:
+            logger.info(f"Threshold exceeded at {len(stations_above_threshold)} stations: {stations_above_threshold}")
         
         return threshold_exceeded, stations_above_threshold
     
@@ -268,12 +304,11 @@ class RealTimeMonitor:
         # Store in history
         self.monitoring_history.append(result)
         
-        # Log if threshold exceeded
+        # Log if threshold exceeded (but don't set last_trigger_time here)
         if threshold_exceeded:
             logger.warning(f"Time {current_time_minutes:.1f}: Z-score threshold exceeded!")
             logger.warning(f"Aggregated Z-score: {aggregated_z_score:.2f}")
             logger.warning(f"Stations above threshold: {stations_above_threshold}")
-            self.last_trigger_time = current_time_minutes
         
         return result
     

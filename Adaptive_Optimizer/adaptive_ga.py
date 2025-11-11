@@ -47,6 +47,14 @@ class AdaptiveOptimizationResult:
     improvement_percentage: float
     adaptation_period_minutes: float
     total_optimization_time_seconds: float
+    # NEW: Add passenger serving data
+    original_passengers_served: int = 0
+    adapted_passengers_served: int = 0
+    passengers_improvement_percentage: float = 0.0
+    # NEW: Add waiting time data
+    original_avg_waiting_time: float = 0.0
+    adapted_avg_waiting_time: float = 0.0
+    waiting_time_improvement_percentage: float = 0.0
 
 
 class AdaptiveLambdaFunction:
@@ -171,6 +179,9 @@ class AdaptiveGeneticAlgorithm:
         self.baseline_lambda_funcs = self.data_processor.get_lambda_functions(current_time_minutes)
         
         # Create and run GA
+        logger.info(f"Creating GA with parameters: pop_size={self.ga_params.get('pop_size', 25)}, generations={self.ga_params.get('generations', 30)}")
+        logger.info(f"GA bounds: headway_min={self.ga_params.get('headway_min', 5)}, headway_max={self.ga_params.get('headway_max', 15)}")
+        
         ga = GeneticAlgorithm(
             sim=self.simulator,
             lambdas=self.baseline_lambda_funcs,
@@ -179,17 +190,19 @@ class AdaptiveGeneticAlgorithm:
             gamma=self.ga_params.get('gamma', 50.0),
             pop_size=self.ga_params.get('pop_size', 25),
             generations=self.ga_params.get('generations', 30),
-            headway_min=self.ga_params.get('headway_min', 3),
-            headway_max=self.ga_params.get('headway_max', 10),
+            headway_min=self.ga_params.get('headway_min', 5),
+            headway_max=self.ga_params.get('headway_max', 15),
             num_trains=self.ga_params.get('num_trains', 8),
             mutation_rate=self.ga_params.get('mutation_rate', 0.15),
             crossover_rate=self.ga_params.get('crossover_rate', 0.6)
         )
         
         start_time = datetime.now()
+        logger.info("Running initial genetic algorithm optimization...")
         best_headways, best_fitness, fitness_history, best_result = ga.run()
         optimization_time = (datetime.now() - start_time).total_seconds()
         
+        logger.info(f"GA optimization completed with {len(fitness_history)} generations")
         self.current_headways = best_headways
         
         logger.info(f"Initial optimization completed in {optimization_time:.2f} seconds")
@@ -237,6 +250,9 @@ class AdaptiveGeneticAlgorithm:
             )
         
         # Run adaptive GA with modified lambda functions
+        logger.info(f"Creating adaptive GA with parameters: pop_size={self.ga_params.get('pop_size', 20)}, generations={self.ga_params.get('generations', 20)}")
+        logger.info(f"Adaptive GA bounds: headway_min={self.ga_params.get('headway_min', 5)}, headway_max={self.ga_params.get('headway_max', 15)}")
+        
         ga = GeneticAlgorithm(
             sim=self.simulator,
             lambdas=adaptive_lambdas,
@@ -245,15 +261,17 @@ class AdaptiveGeneticAlgorithm:
             gamma=self.ga_params.get('gamma', 50.0),
             pop_size=self.ga_params.get('pop_size', 20),  # Slightly smaller for faster adaptation
             generations=self.ga_params.get('generations', 20),  # Fewer generations for faster response
-            headway_min=self.ga_params.get('headway_min', 3),
-            headway_max=self.ga_params.get('headway_max', 10),
+            headway_min=self.ga_params.get('headway_min', 5),
+            headway_max=self.ga_params.get('headway_max', 15),
             num_trains=self.ga_params.get('num_trains', 8),
             mutation_rate=self.ga_params.get('mutation_rate', 0.2),  # Slightly higher mutation for exploration
             crossover_rate=self.ga_params.get('crossover_rate', 0.6)
         )
         
         # Run optimization
+        logger.info("Running adaptive genetic algorithm optimization...")
         adapted_headways, adapted_fitness, fitness_history, adapted_result = ga.run()
+        logger.info(f"Adaptive GA optimization completed with {len(fitness_history)} generations")
         
         # Update current headways
         self.current_headways = adapted_headways
@@ -264,6 +282,18 @@ class AdaptiveGeneticAlgorithm:
         original_fitness = original_result.fitness if original_result else float('inf')
         improvement_pct = ((original_fitness - adapted_fitness) / original_fitness * 100 
                           if original_fitness != 0 and original_fitness != float('inf') else 0.0)
+        
+        # Calculate passenger serving metrics
+        original_passengers = original_result.total_passengers_served if original_result else 0
+        adapted_passengers = adapted_result.total_passengers_served if adapted_result else 0
+        passengers_improvement_pct = ((adapted_passengers - original_passengers) / max(original_passengers, 1) * 100
+                                    if original_passengers > 0 else 0.0)
+        
+        # Calculate waiting time metrics
+        original_waiting_time = original_result.avg_waiting_time if original_result else 0.0
+        adapted_waiting_time = adapted_result.avg_waiting_time if adapted_result else 0.0
+        waiting_time_improvement_pct = ((original_waiting_time - adapted_waiting_time) / max(original_waiting_time, 0.01) * 100
+                                      if original_waiting_time > 0 else 0.0)
         
         # Create result object
         result = AdaptiveOptimizationResult(
@@ -277,14 +307,26 @@ class AdaptiveGeneticAlgorithm:
             adapted_fitness=adapted_fitness,
             improvement_percentage=improvement_pct,
             adaptation_period_minutes=self.adaptation_duration,
-            total_optimization_time_seconds=optimization_time_seconds
+            total_optimization_time_seconds=optimization_time_seconds,
+            # NEW: Include passenger data
+            original_passengers_served=original_passengers,
+            adapted_passengers_served=adapted_passengers,
+            passengers_improvement_percentage=passengers_improvement_pct,
+            # NEW: Include waiting time data
+            original_avg_waiting_time=original_waiting_time,
+            adapted_avg_waiting_time=adapted_waiting_time,
+            waiting_time_improvement_percentage=waiting_time_improvement_pct
         )
         
         self.adaptation_history.append(result)
         
         logger.info(f"Adaptive optimization completed in {optimization_time_seconds:.2f} seconds")
         logger.info(f"Original fitness: {original_fitness:.2f}, Adapted fitness: {adapted_fitness:.2f}")
-        logger.info(f"Improvement: {improvement_pct:.1f}%")
+        logger.info(f"Fitness improvement: {improvement_pct:.1f}%")
+        logger.info(f"Original passengers served: {original_passengers}, Adapted passengers served: {adapted_passengers}")
+        logger.info(f"Passengers improvement: {passengers_improvement_pct:.1f}%")
+        logger.info(f"Original waiting time: {original_waiting_time:.2f} min, Adapted waiting time: {adapted_waiting_time:.2f} min")
+        logger.info(f"Waiting time improvement: {waiting_time_improvement_pct:.1f}%")
         logger.info(f"Adapted headways: {adapted_headways}")
         
         return result

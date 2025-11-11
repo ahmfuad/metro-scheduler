@@ -50,6 +50,12 @@ class MetroDataProcessor:
         self.od_matrix = None
         self.baseline_demand = {}
         self.demand_std = {}
+        self.hourly_predictions = {}  # Store predictions for each hour and station
+        self.prediction_weights = {    # Basic model weights for predictions
+            'historical_weight': 0.7,  # Weight for historical data
+            'trend_weight': 0.2,       # Weight for recent trend
+            'seasonal_weight': 0.1     # Weight for seasonal adjustments
+        }
         
     def load_and_process_data(self, sample_size: int = None) -> None:
         """
@@ -203,7 +209,189 @@ class MetroDataProcessor:
         self.demand_std = demand_std
         
         logger.info("Baseline demand patterns calculated")
-        return baseline_demand
+    
+    def generate_hourly_predictions(self, simulation_hours: int = 24) -> Dict:
+        """
+        Generate hourly predictions for each station using basic model weights.
+        
+        Parameters
+        ----------
+        simulation_hours : int
+            Number of hours to predict (default: 24)
+            
+        Returns
+        -------
+        Dict
+            Hourly predictions by station and hour
+        """
+        logger.info("Generating hourly predictions with basic model weights...")
+        
+        predictions = {}
+        
+        for station in self.station_ids:
+            predictions[station] = {}
+            
+            # Get or generate base rate for this station
+            if station in self.hourly_arrival_rates:
+                # Use actual historical data if available
+                station_rates = self.hourly_arrival_rates[station]
+                if station_rates:
+                    base_rate = np.mean(list(station_rates.values()))
+                else:
+                    base_rate = 2.0  # Default fallback
+            else:
+                # Generate synthetic base rate for stations without historical data
+                station_index = self.station_ids.index(station)
+                # Different stations have different characteristics
+                base_rates = [3.2, 2.8, 4.1, 3.9, 2.3, 3.7, 4.3, 2.9, 3.4, 3.1, 3.8, 2.5, 4.2, 3.3, 2.9, 3.6]
+                base_rate = base_rates[station_index % len(base_rates)]
+                logger.debug(f"Generated synthetic base rate for {station}: {base_rate}")
+            
+            for hour in range(simulation_hours):
+                current_hour = hour % 24
+                
+                # Get hour-specific historical rate or use base rate with time-of-day variation
+                if (station in self.hourly_arrival_rates and 
+                    current_hour in self.hourly_arrival_rates[station]):
+                    historical_rate = self.hourly_arrival_rates[station][current_hour]
+                else:
+                    # Apply time-of-day factor to base rate
+                    time_factor = self._get_time_of_day_factor(current_hour)
+                    historical_rate = base_rate * time_factor
+                
+                # Apply basic prediction model with weights
+                # 1. Historical component (70%)
+                historical_component = historical_rate * self.prediction_weights['historical_weight']
+                
+                # 2. Trend component (20%) - simulate slight upward trend
+                trend_factor = 1.0 + (0.02 * (hour / 24))  # 2% daily growth simulation
+                trend_component = historical_rate * trend_factor * self.prediction_weights['trend_weight']
+                
+                # 3. Seasonal component (10%) - time of day adjustments
+                seasonal_factor = self._get_seasonal_factor(current_hour)
+                seasonal_component = historical_rate * seasonal_factor * self.prediction_weights['seasonal_weight']
+                
+                # Combine components
+                predicted_rate = historical_component + trend_component + seasonal_component
+                
+                # Add small random variation for realism
+                variation = np.random.normal(0, 0.05 * predicted_rate)
+                predicted_rate = max(0.1, predicted_rate + variation)  # Minimum 0.1 passengers per minute
+                
+                predictions[station][hour] = predicted_rate
+        
+        self.hourly_predictions = predictions
+        
+        # Save predictions to file
+        self._save_predictions_to_file()
+        
+        logger.info(f"Hourly predictions generated for {len(self.station_ids)} stations over {simulation_hours} hours")
+        return predictions
+    
+    def _get_seasonal_factor(self, hour: int) -> float:
+        """
+        Get seasonal adjustment factor for time of day.
+        
+        Parameters
+        ----------
+        hour : int
+            Hour of the day (0-23)
+            
+        Returns
+        -------
+        float
+            Seasonal adjustment factor
+        """
+        # Rush hour patterns
+        if 7 <= hour <= 9:      # Morning rush
+            return 1.3
+        elif 17 <= hour <= 19:  # Evening rush  
+            return 1.2
+        elif 12 <= hour <= 13:  # Lunch time
+            return 1.1
+        elif 0 <= hour <= 5:    # Early morning
+            return 0.3
+        elif 22 <= hour <= 23:  # Late night
+            return 0.5
+        else:                   # Normal hours
+            return 1.0
+    
+    def _get_time_of_day_factor(self, hour: int) -> float:
+        """
+        Get time-of-day factor for passenger demand variation.
+        Similar to seasonal factor but for base rate calculation.
+        
+        Parameters
+        ----------
+        hour : int
+            Hour of the day (0-23)
+            
+        Returns
+        -------
+        float
+            Time-of-day adjustment factor
+        """
+        # Rush hour patterns for base rates
+        if 7 <= hour <= 9:      # Morning rush
+            return 1.4
+        elif 17 <= hour <= 19:  # Evening rush  
+            return 1.3
+        elif 12 <= hour <= 13:  # Lunch time
+            return 1.1
+        elif 0 <= hour <= 5:    # Early morning
+            return 0.3
+        elif 22 <= hour <= 23:  # Late night
+            return 0.4
+        else:                   # Normal hours
+            return 1.0
+    
+    def _save_predictions_to_file(self):
+        """Save hourly predictions to CSV files."""
+        try:
+            import os
+            import pandas as pd
+            
+            # Create predictions directory
+            predictions_dir = "predictions"
+            os.makedirs(predictions_dir, exist_ok=True)
+            
+            # Convert predictions to DataFrame
+            data = []
+            for station in self.station_ids:
+                for hour, prediction in self.hourly_predictions[station].items():
+                    data.append({
+                        'Station': station,
+                        'Hour': hour,
+                        'Predicted_Rate': prediction,
+                        'Predicted_Passengers_Per_Hour': prediction * 60  # Convert to passengers per hour
+                    })
+            
+            df = pd.DataFrame(data)
+            
+            # Save to CSV
+            df.to_csv(os.path.join(predictions_dir, "hourly_predictions.csv"), index=False)
+            
+            # Also save summary by station
+            summary_data = []
+            for station in self.station_ids:
+                station_predictions = [self.hourly_predictions[station][h] for h in range(24)]
+                summary_data.append({
+                    'Station': station,
+                    'Average_Daily_Rate': np.mean(station_predictions),
+                    'Peak_Rate': np.max(station_predictions),
+                    'Peak_Hour': np.argmax(station_predictions),
+                    'Off_Peak_Rate': np.min(station_predictions),
+                    'Off_Peak_Hour': np.argmin(station_predictions)
+                })
+            
+            summary_df = pd.DataFrame(summary_data)
+            summary_df.to_csv(os.path.join(predictions_dir, "prediction_summary.csv"), index=False)
+            
+            logger.info(f"Predictions saved to {predictions_dir}/hourly_predictions.csv")
+            logger.info(f"Prediction summary saved to {predictions_dir}/prediction_summary.csv")
+            
+        except Exception as e:
+            logger.error(f"Failed to save predictions: {e}")
     
     def get_lambda_functions(self, current_time_minutes: float = 0) -> List[Callable]:
         """
@@ -266,7 +454,7 @@ class MetroDataProcessor:
                          current_time_minutes: float,
                          time_window_minutes: int = 60) -> Dict[str, float]:
         """
-        Calculate Z-score for current demand vs historical patterns.
+        Calculate Z-score for current demand vs predicted patterns for each station.
         
         Parameters
         ----------
@@ -283,22 +471,40 @@ class MetroDataProcessor:
             Z-scores for each station
         """
         z_scores = {}
-        current_window = int(current_time_minutes / time_window_minutes)
+        current_hour = int(current_time_minutes / 60) % 24
         
         for station in self.station_ids:
             current_count = current_demand.get(station, 0.0)
             
-            if (station in self.baseline_demand and 
-                current_window in self.baseline_demand[station]):
+            # Get predicted value for this station and hour
+            if (station in self.hourly_predictions and 
+                current_hour in self.hourly_predictions[station]):
                 
-                historical_mean = self.baseline_demand[station][current_window]
-                historical_std = self.demand_std[station].get(current_window, 1.0)
+                predicted_rate = self.hourly_predictions[station][current_hour]
+                predicted_count = predicted_rate * (time_window_minutes / 60)  # Scale to time window
                 
-                # Calculate Z-score
-                z_score = (current_count - historical_mean) / historical_std
+                # Calculate standard deviation from historical data or use default
+                if (station in self.demand_std and 
+                    current_hour in self.demand_std[station]):
+                    std_dev = self.demand_std[station][current_hour]
+                else:
+                    # Use 20% of predicted value as default std dev
+                    std_dev = max(0.2 * predicted_count, 1.0)
+                
+                # Calculate Z-score comparing current vs predicted
+                if std_dev > 0:
+                    z_score = (current_count - predicted_count) / std_dev
+                else:
+                    z_score = 0.0
+                
                 z_scores[station] = z_score
+                
+                logger.debug(f"Station {station}: current={current_count:.1f}, "
+                           f"predicted={predicted_count:.1f}, z_score={z_score:.2f}")
             else:
+                # Fallback if no prediction available
                 z_scores[station] = 0.0
+                logger.debug(f"Station {station}: No prediction available, z_score=0.0")
         
         return z_scores
     

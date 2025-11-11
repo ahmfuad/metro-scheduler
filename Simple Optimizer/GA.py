@@ -4,6 +4,8 @@ from Simulator import HeadwaySimulator
 
 
 class GeneticAlgorithm:
+    """Simple GA for headway optimization."""
+
     def __init__(self, sim, lambdas, alpha=1.0, beta=0.1, gamma=0.5,
                  pop_size=20, generations=50,
                  headway_min=3, headway_max=10, num_trains=5,
@@ -93,17 +95,17 @@ class GeneticAlgorithm:
             # Track best
             for H, f in zip(population, results):
                 if f.fitness < best_fitness:
-                    best_H, best_fitness, best_Result = H[:], f.fitness, f
+                    best_H, best_fitness, best_result = H[:], f.fitness, f
 
             print(f"Gen {gen+1}: Best J(H)={best_fitness:.2f}, H={best_H}")
 
-            if best_Result is not None:
+            if best_result is not None:
                 '''
-                print(f"Gen {gen+1}: Best J(H)={best_Result.fitness:.2f}, "
-                    f"Avg Wait={best_Result.avg_waiting_time:.2f}, "
-                    f"Leftover={best_Result.total_passengers_left}, "
-                    f"Served={best_Result.total_passengers_served}, "
-                    f"\n={best_H}")
+                print(f"Gen {gen+1}: Best J(H)={best_result.fitness:.2f}, "
+                    f"Avg Wait={best_result.avg_waiting_time:.2f}, "
+                    f"Leftover={best_result.total_passengers_left}, "
+                    f"Served={best_result.total_passengers_served}, "
+                    f"H={best_H}")
                 '''
                 fitness_history.append(best_fitness)
             # else:
@@ -120,4 +122,4 @@ class GeneticAlgorithm:
                     new_population.append(self.mutate(c2))
             population = new_population
 
-        return best_H, best_fitness, fitness_history, best_Result
+        return best_H, best_fitness, fitness_history, best_result

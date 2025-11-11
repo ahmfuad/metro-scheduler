@@ -221,8 +221,8 @@ Most Problematic Stations: {', '.join(list(exceedance_counts.keys())[:3])}
             logger.warning("No adaptation data available for plotting")
             return None
         
-        fig, axes = plt.subplots(2, 3, figsize=self.config.figure_size, dpi=self.config.dpi)
-        fig.suptitle(title, fontsize=16, fontweight='bold')
+        fig, axes = plt.subplots(3, 3, figsize=(20, 16), dpi=self.config.dpi)
+        fig.suptitle(title, fontsize=18, fontweight='bold', y=0.98)
         
         # Extract data
         optimization_times = [r.optimization_time for r in adaptation_history]
@@ -231,34 +231,59 @@ Most Problematic Stations: {', '.join(list(exceedance_counts.keys())[:3])}
         improvements = [r.improvement_percentage for r in adaptation_history]
         computation_times = [r.total_optimization_time_seconds for r in adaptation_history]
         
+        # Extract waiting time data (NEW)
+        original_waiting_times = [getattr(r, 'original_avg_waiting_time', 0) for r in adaptation_history]
+        adapted_waiting_times = [getattr(r, 'adapted_avg_waiting_time', 0) for r in adaptation_history]
+        waiting_time_improvements = [getattr(r, 'waiting_time_improvement_percentage', 0) for r in adaptation_history]
+        
         # 1. Fitness improvement over time
         axes[0, 0].plot(optimization_times, original_fitness, 'ro-', linewidth=2, 
                        label='Original Fitness', markersize=6)
         axes[0, 0].plot(optimization_times, adapted_fitness, 'go-', linewidth=2, 
                        label='Adapted Fitness', markersize=6)
-        axes[0, 0].set_title('Fitness Evolution Through Adaptations')
-        axes[0, 0].set_xlabel('Optimization Time (minutes)')
-        axes[0, 0].set_ylabel('Fitness Score')
-        axes[0, 0].legend()
+        axes[0, 0].set_title('Fitness Evolution', fontsize=12, pad=15)
+        axes[0, 0].set_xlabel('Time (minutes)', fontsize=10)
+        axes[0, 0].set_ylabel('Fitness Score', fontsize=10)
+        axes[0, 0].legend(fontsize=9)
         axes[0, 0].grid(True, alpha=0.3)
         
-        # 2. Improvement percentage
-        axes[0, 1].bar(range(len(improvements)), improvements, 
-                      color=['green' if x > 0 else 'red' for x in improvements], alpha=0.7)
-        axes[0, 1].axhline(y=0, color='black', linestyle='-', alpha=0.5)
-        axes[0, 1].set_title('Fitness Improvement per Adaptation')
-        axes[0, 1].set_xlabel('Adaptation Number')
-        axes[0, 1].set_ylabel('Improvement (%)')
+        # 2. Waiting time evolution (NEW)
+        axes[0, 1].plot(optimization_times, original_waiting_times, 'bo-', linewidth=2, 
+                       label='Original', markersize=6)
+        axes[0, 1].plot(optimization_times, adapted_waiting_times, 'mo-', linewidth=2, 
+                       label='Adapted', markersize=6)
+        axes[0, 1].set_title('Waiting Time Evolution', fontsize=12, pad=15)
+        axes[0, 1].set_xlabel('Time (minutes)', fontsize=10)
+        axes[0, 1].set_ylabel('Avg Wait Time (min)', fontsize=10)
+        axes[0, 1].legend(fontsize=9)
         axes[0, 1].grid(True, alpha=0.3)
         
-        # 3. Computation time analysis
-        axes[0, 2].plot(optimization_times, computation_times, 'bo-', linewidth=2, markersize=6)
-        axes[0, 2].set_title('Optimization Computation Time')
-        axes[0, 2].set_xlabel('Optimization Time (minutes)')
-        axes[0, 2].set_ylabel('Computation Time (seconds)')
+        # 3. Fitness improvement percentage
+        axes[0, 2].bar(range(len(improvements)), improvements, 
+                      color=['green' if x > 0 else 'red' for x in improvements], alpha=0.7)
+        axes[0, 2].axhline(y=0, color='black', linestyle='-', alpha=0.5)
+        axes[0, 2].set_title('Fitness Improvement %', fontsize=12, pad=15)
+        axes[0, 2].set_xlabel('Adaptation #', fontsize=10)
+        axes[0, 2].set_ylabel('Improvement (%)', fontsize=10)
         axes[0, 2].grid(True, alpha=0.3)
         
-        # 4. Headway evolution (show first and last few trains)
+        # 4. Waiting time improvement percentage (NEW)
+        axes[1, 0].bar(range(len(waiting_time_improvements)), waiting_time_improvements, 
+                      color=['green' if x > 0 else 'red' for x in waiting_time_improvements], alpha=0.7)
+        axes[1, 0].axhline(y=0, color='black', linestyle='-', alpha=0.5)
+        axes[1, 0].set_title('Wait Time Improvement %', fontsize=12, pad=15)
+        axes[1, 0].set_xlabel('Adaptation #', fontsize=10)
+        axes[1, 0].set_ylabel('Improvement (%)', fontsize=10)
+        axes[1, 0].grid(True, alpha=0.3)
+        
+        # 5. Computation time analysis
+        axes[1, 1].plot(optimization_times, computation_times, 'co-', linewidth=2, markersize=6)
+        axes[1, 1].set_title('Computation Time', fontsize=12, pad=15)
+        axes[1, 1].set_xlabel('Time (minutes)', fontsize=10)
+        axes[1, 1].set_ylabel('Comp. Time (sec)', fontsize=10)
+        axes[1, 1].grid(True, alpha=0.3)
+        
+        # 6. Headway evolution (show first and last few trains)
         if adaptation_history:
             first_original = adaptation_history[0].original_headways[:4]
             last_adapted = adaptation_history[-1].adapted_headways[:4]
@@ -266,19 +291,19 @@ Most Problematic Stations: {', '.join(list(exceedance_counts.keys())[:3])}
             x_pos = np.arange(len(first_original))
             width = 0.35
             
-            axes[1, 0].bar(x_pos - width/2, first_original, width, 
-                          label='Original (First)', color='lightcoral', alpha=0.8)
-            axes[1, 0].bar(x_pos + width/2, last_adapted, width, 
-                          label='Adapted (Last)', color='lightgreen', alpha=0.8)
-            axes[1, 0].set_title('Headway Comparison (First 4 Trains)')
-            axes[1, 0].set_xlabel('Train Number')
-            axes[1, 0].set_ylabel('Headway (minutes)')
-            axes[1, 0].set_xticks(x_pos)
-            axes[1, 0].set_xticklabels([f'Train {i+1}' for i in range(len(first_original))])
-            axes[1, 0].legend()
-            axes[1, 0].grid(True, alpha=0.3)
+            axes[1, 2].bar(x_pos - width/2, first_original, width, 
+                          label='Original', color='lightcoral', alpha=0.8)
+            axes[1, 2].bar(x_pos + width/2, last_adapted, width, 
+                          label='Adapted', color='lightgreen', alpha=0.8)
+            axes[1, 2].set_title('Headway Comparison', fontsize=12, pad=15)
+            axes[1, 2].set_xlabel('Train Number', fontsize=10)
+            axes[1, 2].set_ylabel('Headway (minutes)', fontsize=10)
+            axes[1, 2].set_xticks(x_pos)
+            axes[1, 2].set_xticklabels([f'T{i+1}' for i in range(len(first_original))], fontsize=9)
+            axes[1, 2].legend(fontsize=9)
+            axes[1, 2].grid(True, alpha=0.3)
         
-        # 5. Z-score triggers analysis
+        # 7. Z-score triggers analysis
         all_trigger_z_scores = []
         trigger_stations = []
         
@@ -296,34 +321,57 @@ Most Problematic Stations: {', '.join(list(exceedance_counts.keys())[:3])}
             stations = list(station_counts.keys())[:5]  # Top 5
             counts = [station_counts[s] for s in stations]
             
-            axes[1, 1].bar(stations, counts, color='orange', alpha=0.7)
-            axes[1, 1].set_title('Adaptation Triggers by Station')
-            axes[1, 1].set_xlabel('Stations')
-            axes[1, 1].set_ylabel('Trigger Count')
-            axes[1, 1].tick_params(axis='x', rotation=45)
-            axes[1, 1].grid(True, alpha=0.3)
+            axes[2, 0].bar(stations, counts, color='orange', alpha=0.7)
+            axes[2, 0].set_title('Adaptation Triggers', fontsize=12, pad=15)
+            axes[2, 0].set_xlabel('Stations', fontsize=10)
+            axes[2, 0].set_ylabel('Trigger Count', fontsize=10)
+            axes[2, 0].tick_params(axis='x', rotation=45, labelsize=9)
+            axes[2, 0].grid(True, alpha=0.3)
         
-        # 6. Performance summary
+        # 8. Waiting time vs Fitness correlation (NEW)
+        if original_waiting_times and adapted_waiting_times:
+            axes[2, 1].scatter(original_fitness, original_waiting_times, 
+                             color='red', alpha=0.6, s=60, label='Original')
+            axes[2, 1].scatter(adapted_fitness, adapted_waiting_times, 
+                             color='green', alpha=0.6, s=60, label='Adapted')
+            axes[2, 1].set_title('Wait Time vs Fitness', fontsize=12, pad=15)
+            axes[2, 1].set_xlabel('Fitness Score', fontsize=10)
+            axes[2, 1].set_ylabel('Wait Time (min)', fontsize=10)
+            axes[2, 1].legend(fontsize=9)
+            axes[2, 1].grid(True, alpha=0.3)
+        
+        # 9. Performance summary
         total_adaptations = len(adaptation_history)
         avg_improvement = np.mean(improvements) if improvements else 0
         avg_computation_time = np.mean(computation_times) if computation_times else 0
         successful_adaptations = sum(1 for x in improvements if x > 0)
         
-        summary_text = f"""Optimization Performance Summary:
+        # Calculate waiting time summary (NEW)
+        avg_waiting_improvement = np.mean(waiting_time_improvements) if waiting_time_improvements else 0
+        successful_waiting_adaptations = sum(1 for x in waiting_time_improvements if x > 0)
+        
+        summary_text = f"""Performance Summary
 
-Total Adaptations: {total_adaptations}
-Successful Adaptations: {successful_adaptations} ({successful_adaptations/total_adaptations:.1%})
-Average Improvement: {avg_improvement:.2f}%
-Average Computation Time: {avg_computation_time:.2f}s
-Best Improvement: {max(improvements):.2f}%
-Worst Performance: {min(improvements):.2f}%
+Adaptations: {total_adaptations}
+Success Rate: {successful_adaptations}/{total_adaptations} ({successful_adaptations/total_adaptations:.1%})
+Wait Success: {successful_waiting_adaptations}/{total_adaptations} ({successful_waiting_adaptations/total_adaptations:.1%})
+
+Avg Improvements:
+• Fitness: {avg_improvement:.1f}%
+• Wait Time: {avg_waiting_improvement:.1f}%
+
+Best Results:
+• Fitness: {max(improvements):.1f}%
+• Wait Time: {max(waiting_time_improvements):.1f}%
+
+Avg Comp Time: {avg_computation_time:.1f}s
         """
         
-        axes[1, 2].text(0.05, 0.95, summary_text, transform=axes[1, 2].transAxes, 
-                        verticalalignment='top', fontsize=10,
+        axes[2, 2].text(0.05, 0.95, summary_text, transform=axes[2, 2].transAxes, 
+                        verticalalignment='top', fontsize=9,
                         bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
-        axes[1, 2].set_title('Performance Summary')
-        axes[1, 2].axis('off')
+        axes[2, 2].set_title('Performance Summary', fontsize=12, pad=15)
+        axes[2, 2].axis('off')
         
         plt.tight_layout()
         

@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(__file__))
 from main import MetroAdaptiveOptimizationSystem, MetroOptimizationConfig
 
 # Configure logging for test
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -47,12 +47,16 @@ def create_test_config() -> MetroOptimizationConfig:
     # Faster GA parameters for testing
     config.ga_params.update({
         'pop_size': 15,
-        'generations': 15,
+        'generations': 10,  # Very fast for testing
+        'headway_min': 5,
+        'headway_max': 15,
     })
     
     config.adaptive_ga_params.update({
         'pop_size': 10,
-        'generations': 10,
+        'generations': 8,  # Very fast for testing
+        'headway_min': 5,
+        'headway_max': 15,
     })
     
     # Test output directory
@@ -157,6 +161,7 @@ def run_integration_test() -> bool:
         logger.info("Testing monitoring and adaptation...")
         for i in range(3):  # Test 3 monitoring steps
             test_time = i * config.monitoring_interval_minutes
+            logger.info(f"  Running monitoring step {i+1}/3 at time {test_time:.1f} minutes...")
             monitoring_result = system.monitor.monitor_step(test_time)
             system.monitoring_history.append(monitoring_result)
             

@@ -50,12 +50,12 @@ class MetroOptimizationConfig:
         self.sample_size = 10000  # Use subset for proof of concept
         
         # Monitoring settings
-        self.z_score_threshold = 2.0  # Threshold for triggering adaptive optimization
+        self.z_score_threshold = 40.0  # Threshold for triggering adaptive optimization
         self.monitoring_interval_minutes = 5.0
-        self.noise_level = 0.2  # Noise in simulated real-time data
+        self.noise_level = 0.5  # Noise in simulated real-time data
         
         # Simulation settings
-        self.total_simulation_time_hours = 8.0  # 8 hours of operation
+        self.total_simulation_time_hours = 12.0  # 8 hours of operation
         self.adaptation_duration_minutes = 30.0  # Duration of demand adaptation
         
         # GA settings
@@ -64,9 +64,9 @@ class MetroOptimizationConfig:
             'beta': 0.25,      # Weight for leftover passengers
             'gamma': 50.0,     # Weight for number of trains
             'pop_size': 25,
-            'generations': 30,
-            'headway_min': 3,
-            'headway_max': 10,
+            'generations':80,
+            'headway_min': 5,
+            'headway_max': 15,
             'num_trains': 8,
             'mutation_rate': 0.15,
             'crossover_rate': 0.6
@@ -78,9 +78,9 @@ class MetroOptimizationConfig:
             'beta': 0.25,
             'gamma': 50.0,
             'pop_size': 20,     # Smaller for faster optimization
-            'generations': 20,   # Fewer generations for speed
-            'headway_min': 3,
-            'headway_max': 10,
+            'generations': 80,   # Fewer generations for speed
+            'headway_min': 5,
+            'headway_max': 15,
             'num_trains': 8,
             'mutation_rate': 0.2,   # Higher mutation for exploration
             'crossover_rate': 0.6
@@ -162,43 +162,66 @@ class MetroAdaptiveOptimizationSystem:
             logger.info("Initializing system components...")
             
             # 1. Initialize data processor
-            logger.info("Loading and processing historical data...")
+            logger.info("Step 1: Loading and processing historical data...")
             self.data_processor = MetroDataProcessor(self.config.csv_file_path)
+            logger.info(f"Loading data from: {self.config.csv_file_path}")
+            logger.info(f"Sample size: {self.config.sample_size}")
+            
             self.data_processor.load_and_process_data(sample_size=self.config.sample_size)
+            logger.info(f"Data loaded successfully: {len(self.data_processor.data)} trips")
             
             # Process historical patterns
+            logger.info("Calculating historical patterns...")
             self.data_processor.calculate_hourly_arrival_rates()
+            logger.info("Hourly arrival rates calculated")
+            
             self.data_processor.calculate_od_matrix()
+            logger.info("OD matrix calculated")
+            
             self.data_processor.calculate_baseline_demand()
+            logger.info("Baseline demand patterns calculated")
+            
+            # Generate hourly predictions for all stations
+            self.data_processor.generate_hourly_predictions(simulation_hours=24)
+            logger.info("Hourly predictions generated for all stations")
             
             # Add travel times to sim params
             self.config.sim_params['travel_times'] = self.data_processor.get_travel_times()
+            logger.info("Travel times added to simulation parameters")
             
             logger.info(f"Data processing completed. Processed {len(self.data_processor.data)} trips.")
             
             # 2. Initialize real-time monitor
+            logger.info("Step 2: Initializing real-time monitor...")
             self.monitor = RealTimeMonitor(
                 data_processor=self.data_processor,
                 z_score_threshold=self.config.z_score_threshold,
                 monitoring_interval_minutes=self.config.monitoring_interval_minutes,
                 noise_level=self.config.noise_level
             )
+            logger.info(f"Monitor initialized with threshold: {self.config.z_score_threshold}")
             
             # 3. Initialize adaptive GA
+            logger.info("Step 3: Initializing adaptive GA...")
             self.adaptive_ga = AdaptiveGeneticAlgorithm(
                 data_processor=self.data_processor,
                 sim_params=self.config.sim_params,
                 ga_params=self.config.adaptive_ga_params,
                 adaptation_duration_minutes=self.config.adaptation_duration_minutes
             )
+            logger.info("Adaptive GA initialized")
             
             # 4. Initialize visualization system
             if self.config.generate_visualizations:
+                logger.info("Step 4: Initializing visualization system...")
                 viz_config = VisualizationConfig(
                     output_directory=os.path.join(self.config.output_directory, "plots"),
                     save_plots=True
                 )
                 self.visualization_system = MetroVisualizationSystem(viz_config)
+                logger.info("Visualization system initialized")
+            else:
+                logger.info("Step 4: Skipping visualization system (disabled in config)")
             
             logger.info("System initialization completed successfully")
             return True
@@ -272,9 +295,13 @@ class MetroAdaptiveOptimizationSystem:
             self.system_start_time = datetime.now()
             
             while current_time <= total_simulation_minutes:
+                logger.debug(f"Monitoring step at time {current_time:.1f} minutes")
+                
                 # Perform monitoring step
                 monitoring_result = self.monitor.monitor_step(current_time)
                 self.monitoring_history.append(monitoring_result)
+                
+                logger.debug(f"Monitoring result: Z-score={monitoring_result.aggregated_z_score:.2f}, Threshold exceeded={monitoring_result.threshold_exceeded}")
                 
                 self.performance_metrics['total_monitoring_points'] += 1
                 self.performance_metrics['avg_z_score'] = np.mean([r.aggregated_z_score for r in self.monitoring_history])
@@ -283,10 +310,14 @@ class MetroAdaptiveOptimizationSystem:
                     self.performance_metrics['threshold_exceedances'] += 1
                     
                     logger.info(f"Time {current_time:.1f}: Threshold exceeded - Z-score: {monitoring_result.aggregated_z_score:.2f}")
+                    logger.info(f"Stations above threshold: {monitoring_result.stations_above_threshold}")
                     
                     # Check if adaptive optimization should be triggered
                     if self.monitor.should_trigger_adaptive_optimization(monitoring_result):
                         logger.info(f"Triggering adaptive optimization at time {current_time:.1f} minutes")
+                        
+                        # Set last trigger time to prevent too frequent adaptations
+                        self.monitor.last_trigger_time = current_time
                         
                         start_time = time.time()
                         adaptation_result = self.adaptive_ga.adaptive_optimization(monitoring_result)
@@ -300,11 +331,18 @@ class MetroAdaptiveOptimizationSystem:
                         
                         logger.info(f"Adaptive optimization completed in {adaptation_time:.2f} seconds")
                         logger.info(f"Improvement: {adaptation_result.improvement_percentage:.1f}%")
+                        logger.info(f"Waiting time: {adaptation_result.original_avg_waiting_time:.2f} → {adaptation_result.adapted_avg_waiting_time:.2f} min ({adaptation_result.waiting_time_improvement_percentage:.1f}% improvement)")
+                    else:
+                        logger.debug("Threshold exceeded but adaptive optimization not triggered (cooldown or other conditions)")
+                else:
+                    logger.debug(f"Time {current_time:.1f}: Normal operation - Z-score: {monitoring_result.aggregated_z_score:.2f}")
                 
                 # Progress update every 30 minutes
                 if current_time % 30.0 == 0 and current_time > 0:
                     progress_pct = (current_time / total_simulation_minutes) * 100
                     logger.info(f"Simulation progress: {progress_pct:.1f}% ({current_time:.0f}/{total_simulation_minutes:.0f} min)")
+                    logger.info(f"Total monitoring points so far: {len(self.monitoring_history)}")
+                    logger.info(f"Total adaptations so far: {len(self.adaptation_history)}")
                 
                 current_time += self.config.monitoring_interval_minutes
             
@@ -365,7 +403,10 @@ class MetroAdaptiveOptimizationSystem:
             'avg_fitness': np.mean([r.adapted_fitness for r in self.adaptation_history]) if self.adaptation_history else static_metrics['fitness'],
             'avg_improvement_percentage': np.mean([r.improvement_percentage for r in self.adaptation_history]) if self.adaptation_history else 0,
             'total_adaptation_time_seconds': sum(r.total_optimization_time_seconds for r in self.adaptation_history),
-            'avg_adaptation_time_seconds': np.mean([r.total_optimization_time_seconds for r in self.adaptation_history]) if self.adaptation_history else 0
+            'avg_adaptation_time_seconds': np.mean([r.total_optimization_time_seconds for r in self.adaptation_history]) if self.adaptation_history else 0,
+            # NEW: Add passenger serving metrics
+            'avg_passengers_served': np.mean([r.adapted_passengers_served for r in self.adaptation_history]) if self.adaptation_history else 0,
+            'avg_passengers_improvement_percentage': np.mean([r.passengers_improvement_percentage for r in self.adaptation_history]) if self.adaptation_history else 0
         }
         
         # Monitoring metrics
@@ -411,7 +452,9 @@ class MetroAdaptiveOptimizationSystem:
             Final performance metrics
         """
         try:
-            logger.info("Generating visualizations...")
+            logger.info("Starting visualization generation...")
+            logger.info(f"Monitoring history entries: {len(self.monitoring_history)}")
+            logger.info(f"Adaptation history entries: {len(self.adaptation_history)}")
             
             # Generate comprehensive report with all plots
             self.visualization_system.generate_comprehensive_report(
@@ -421,10 +464,11 @@ class MetroAdaptiveOptimizationSystem:
                 adaptive_summary=final_metrics['adaptive_optimization']
             )
             
-            logger.info(f"Visualizations saved to {self.visualization_system.config.output_directory}")
+            logger.info(f"Visualizations completed and saved to {self.visualization_system.config.output_directory}")
             
         except Exception as e:
             logger.error(f"Visualization generation failed: {e}")
+            logger.exception("Full visualization error traceback:")
     
     def _save_detailed_logs(self, final_metrics: Dict) -> None:
         """
@@ -449,7 +493,9 @@ class MetroAdaptiveOptimizationSystem:
                     'aggregated_z_score': r.aggregated_z_score,
                     'threshold_exceeded': r.threshold_exceeded,
                     'stations_above_threshold': r.stations_above_threshold,
-                    'z_scores': r.z_scores
+                    'z_scores': r.z_scores,
+                    # NEW: Include passenger demand data
+                    'current_demand': r.station_loads
                 }
                 for r in self.monitoring_history
             ]
@@ -468,7 +514,11 @@ class MetroAdaptiveOptimizationSystem:
                         'adapted_fitness': r.adapted_fitness,
                         'improvement_percentage': r.improvement_percentage,
                         'adapted_headways': r.adapted_headways,
-                        'scaling_factors': r.scaling_factors
+                        'scaling_factors': r.scaling_factors,
+                        # NEW: Include passenger serving data
+                        'original_passengers_served': r.original_passengers_served,
+                        'adapted_passengers_served': r.adapted_passengers_served,
+                        'passengers_improvement_percentage': r.passengers_improvement_percentage
                     }
                     for r in self.adaptation_history
                 ]
@@ -518,6 +568,15 @@ class MetroAdaptiveOptimizationSystem:
         print(f"  Total Adaptations: {adaptive['total_adaptations']}")
         print(f"  Average Improvement per Adaptation: {adaptive['avg_improvement_percentage']:.1f}%")
         print(f"  Average Adaptation Time: {adaptive['avg_adaptation_time_seconds']:.2f} seconds")
+        
+        # Add waiting time improvements for adaptive optimization
+        if adaptive['total_adaptations'] > 0 and hasattr(self, 'adaptation_history') and self.adaptation_history:
+            avg_original_waiting = sum(result.original_avg_waiting_time for result in self.adaptation_history) / len(self.adaptation_history)
+            avg_adapted_waiting = sum(result.adapted_avg_waiting_time for result in self.adaptation_history) / len(self.adaptation_history)
+            avg_waiting_improvement = sum(result.waiting_time_improvement_percentage for result in self.adaptation_history) / len(self.adaptation_history)
+            print(f"  Average Original Waiting Time: {avg_original_waiting:.2f} minutes")
+            print(f"  Average Adapted Waiting Time: {avg_adapted_waiting:.2f} minutes")
+            print(f"  Average Waiting Time Improvement: {avg_waiting_improvement:.1f}%")
         
         print(f"\nMONITORING PERFORMANCE:")
         print(f"  Total Monitoring Points: {monitoring['total_monitoring_points']}")
@@ -575,8 +634,8 @@ def main():
                       help="Number of data rows to process (default: 10000)")
     parser.add_argument("--simulation-hours", type=float, default=8.0,
                       help="Simulation duration in hours (default: 8.0)")
-    parser.add_argument("--z-threshold", type=float, default=2.0,
-                      help="Z-score threshold for triggering adaptation (default: 2.0)")
+    parser.add_argument("--z-threshold", type=float, default=40.0,
+                      help="Z-score threshold for triggering adaptation (default: 40.0)")
     parser.add_argument("--output-dir", type=str, default="optimization_results",
                       help="Output directory for results (default: optimization_results)")
     parser.add_argument("--no-viz", action="store_true",
