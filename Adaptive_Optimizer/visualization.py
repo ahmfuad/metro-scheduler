@@ -616,12 +616,12 @@ Avg Comp Time: {avg_computation_time:.1f}s
             stations = list(current_result.z_scores.keys())
             z_values = list(current_result.z_scores.values())
             
-            colors = ['red' if abs(z) > 2.0 else 'orange' if abs(z) > 1.0 else 'green' 
+            colors = ['red' if abs(z) > z_threshold else 'orange' if abs(z) > z_threshold/2 else 'green' 
                      for z in z_values]
             
             ax2.bar(range(len(stations)), z_values, color=colors, alpha=0.7)
-            ax2.axhline(y=2.0, color='r', linestyle='--', alpha=0.7)
-            ax2.axhline(y=-2.0, color='r', linestyle='--', alpha=0.7)
+            ax2.axhline(y=z_threshold, color='r', linestyle='--', alpha=0.7, label=f'Threshold ({z_threshold})')
+            ax2.axhline(y=-z_threshold, color='r', linestyle='--', alpha=0.7)
             ax2.set_title(f'Station Z-scores at Time {timestamps[frame]:.1f} min')
             ax2.set_xlabel('Stations')
             ax2.set_ylabel('Z-score')

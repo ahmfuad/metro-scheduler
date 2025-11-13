@@ -404,6 +404,7 @@ class HeadwaySimulator:
             max(1, total_served) if total_served > 0 else float('inf')
         w1, w2, w3 = weights
         fitness = w1 * avg_wait + w2 * total_left + w3 * len(H)
+        
 
         result = SimulatorResult(
             H=list(H),

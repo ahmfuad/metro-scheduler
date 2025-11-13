@@ -119,7 +119,7 @@ def main():
 
 # ------------------ Test for static schedule ------------------
 
-    H = [5, 5, 5, 5, 5, 5, 5, 5]
+    H = [8, 8, 8, 8, 8, 8, 8, 8]
 
     static_result = sim.simulate(H, lambdas, weights=(ga.alpha, ga.beta, ga.gamma))
 
