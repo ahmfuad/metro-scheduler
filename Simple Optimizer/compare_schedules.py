@@ -60,6 +60,7 @@ def run_full_day_simulation(headway_schedule, predictor, sim_params):
 
         else:
             # STATIC: Use the full schedule without truncation
+            headway_schedule[-1] += (60-sum(headway_schedule))  # Adjust last headway to fit exactly 60 minutes
             H = headway_schedule
 
         # If the schedule for the hour is empty, skip
@@ -157,7 +158,7 @@ def main():
         'n_stations': 16,
         'capacity': 2184,
         'travel_times': [2] * 15,
-        'weights': (3.5, 0.25, 50.0), # alpha, beta, gamma from Driver.py
+        'weights': (3.5, 0.25, 1680), # alpha, beta, gamma from Driver.py
         'p_dest': np.array([
             [0.000, 0.003, 0.003, 0.056, 0.077, 0.159, 0.033, 0.041,
             0.092, 0.018, 0.054, 0.076, 0.058, 0.062, 0.131, 0.136],

@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import math
 
 # Add parent directories to Python path to allow imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -75,12 +76,14 @@ def run_experiment(fleet_sizes, predictor, ga_params, sim_params):
 
     for k in fleet_sizes:
         print(f"\n--- Running Experiment for Fleet Size: {k} ---")
+
+        ga_params['headway_min'] = min(20, 60 // k) #
         
         # 1. Generate dynamic schedule using GA
         dynamic_schedule = generate_dynamic_schedule(k, predictor, ga_params, sim_params)
         
         # 2. Define a simple static schedule for comparison
-        static_schedule = [5] * k
+        static_schedule = [math.floor(60/k)] * k
         
         # 3. Run full-day simulation for both
         print(f"  Simulating STATIC schedule for fleet size {k}...")
@@ -172,13 +175,13 @@ def main():
     Main function to set up and run the experiment.
     """
     # --- Parameters ---
-    fleet_sizes_to_test = range(10, 21)
+    fleet_sizes_to_test = range(5, 21)
     
     sim_params = {
         'n_stations': 16,
         'capacity': 2184,
         'travel_times': [2] * 15,
-        'weights': (3.5, 0.25, 50.0),
+        'weights': (3.5, 0.25, 1680),
         'p_dest': np.array([
             [0.000, 0.003, 0.003, 0.056, 0.077, 0.159, 0.033, 0.041, 0.092, 0.018, 0.054, 0.076, 0.058, 0.062, 0.131, 0.136],
             [0.000, 0.000, 0.002, 0.089, 0.082, 0.189, 0.028, 0.040, 0.085, 0.024, 0.072, 0.086, 0.046, 0.059, 0.088, 0.110],
@@ -204,7 +207,7 @@ def main():
         'beta': sim_params['weights'][1],
         'gamma': sim_params['weights'][2],
         'pop_size': 20, 
-        'generations': 30,
+        'generations': 20,
         'headway_min': 3,
         'headway_max': 15,
         'mutation_rate': 0.2,
