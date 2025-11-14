@@ -33,25 +33,38 @@ def run_full_day_simulation(headway_schedule, predictor, sim_params):
 
     for hour in range(15):
         # Determine the headway for the current hour
-        if isinstance(headway_schedule, dict):
-            # Handle JSON keys being strings
-            H_original = headway_schedule.get(str(hour), headway_schedule.get(hour, [10] * 8)) 
-        else:
-            H_original = headway_schedule
+        is_dynamic = isinstance(headway_schedule, dict)
 
-        # Constrain the total headway sum to be <= 60 minutes for the hour
-        cumulative_headways = np.cumsum(H_original)
-        # Find where the cumulative time exceeds 60 minutes
-        cut_off_indices = np.where(cumulative_headways > 60)[0]
-        if len(cut_off_indices) > 0:
-            # Truncate the schedule to only include trains that can depart within the hour
-            H = H_original[:cut_off_indices[0]]
-        else:
-            H = H_original
+        if is_dynamic:
+            # DYNAMIC: Truncate the schedule to fit within a 60-minute window
+            H_original = headway_schedule.get(str(hour), headway_schedule.get(hour, [10] * 8))
+            
+            cumulative_sum = 0
+            last_valid_index = -1
+            for i, h in enumerate(H_original):
+                if cumulative_sum + h < 60:
+                    cumulative_sum += h
+                    last_valid_index = i
+                else:
+                    break
+            
+            # Take headways up to the last one that fits, then add one more
+            H_truncated = H_original[:last_valid_index + 1]
+            
+            if cumulative_sum < 60:
+                # Add one final train to depart at exactly the 60-minute mark
+                final_headway = 60 - cumulative_sum
+                H = H_truncated + [final_headway]
+            else:
+                H = H_truncated
 
-        # If the schedule for the hour is empty after truncation, skip to the next hour
+        else:
+            # STATIC: Use the full schedule without truncation
+            H = headway_schedule
+
+        # If the schedule for the hour is empty, skip
         if not H:
-            print(f"\nHour {hour}: Headway schedule is empty or exceeds 60-minute limit from the start. Skipping.")
+            print(f"\nHour {hour}: Headway schedule is empty. Skipping.")
             continue
 
         # Get arrival rates for the current hour
@@ -78,9 +91,10 @@ def run_full_day_simulation(headway_schedule, predictor, sim_params):
         # Run simulation for the hour
         result = sim.simulate(H, lambdas_this_hour, weights=sim_params['weights'])
         
-        # Store results for this hour
+        # Store results for this hour, including the actual headway used
         daily_results.append({
             'hour': hour,
+            'headway_schedule': H,
             'avg_waiting_time': result.avg_waiting_time,
             'served': result.total_passengers_served,
             'leftover': result.total_passengers_left,
@@ -114,7 +128,7 @@ def run_full_day_simulation(headway_schedule, predictor, sim_params):
         'Overall Average Waiting Time (min)': weighted_avg_wait,
         'Total Arrived': total_arrived,
         'Fitness': df['fitness'].sum()
-    }
+    }, daily_results # Return both summary and detailed results
 
 
 def main():
@@ -182,10 +196,10 @@ def main():
 
     # --- Run Simulations ---
     print("Running 24-hour simulation for STATIC headway...")
-    static_summary = run_full_day_simulation(static_headway, predictor, sim_params)
+    static_summary, _ = run_full_day_simulation(static_headway, predictor, sim_params)
 
     print("Running 24-hour simulation for DYNAMIC headway...")
-    dynamic_summary = run_full_day_simulation(dynamic_headways, predictor, sim_params)
+    dynamic_summary, _ = run_full_day_simulation(dynamic_headways, predictor, sim_params)
 
     # --- Display Comparison ---
     comparison_df = pd.DataFrame([static_summary, dynamic_summary], 
